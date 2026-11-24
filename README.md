@@ -4,7 +4,23 @@ Public control code; private reference files and credentials. Uses standard GitH
 
 ## Status
 
-The synthetic check needs no credentials and tests actual age encryption/decryption plus an in-memory storage stand-in. It does **not** prove Muse file hosting, R2 access or Taste library indexing. The real transfer refuses admission until the protected environment is configured; it requires separate owner review for each run. No schedule or pull-request event can run it. Nothing here merges or deploys the Taste app.
+The protected runner has completed Cal AI and Alma byte transfers with full reader-key verification. Library metadata is a separate operation. The synthetic check uses no credentials and is not evidence of a real import. Every real transfer requires separate owner review. No schedule or pull-request event can run it. Nothing here merges or deploys the Taste app.
+
+## Cloud producer submission
+
+`submitted-transfer.yml` accepts an **encrypted descriptor**, so a cloud producer no longer needs to set the `TASTE_BATCH_CONFIG` environment secret. The original `transfer.yml` manual path remains available. Both use the same protected environment, current-main checks, host allowlist, limits, immutable writes and full readback. The request is data; downloaded code is never executed.
+
+1. Build and encrypt the ordinary bounded bundle as below. Host only ciphertext. Keep the plaintext descriptor in the producer's private workspace.
+2. Use `tools/request_job.py --descriptor <private-json> --age <pinned-age> --recipient <reviewed-public-recipient> --host muse.ai --output <request-json>`. This encrypts the descriptor itself; the resulting request contains only version, opaque batch ID, encrypted-descriptor hash and base64 age ciphertext. The private download URL and queue fingerprint are inside the encryption.
+3. Through a registered secure API-key connection, call `POST https://api.github.com/repos/samuelalake/taste-releases/actions/workflows/submitted-transfer.yml/dispatches` with `{"ref":"main","inputs":{"request":"<exact request JSON string>"}}`. A fine-grained GitHub token needs **Actions: read and write**, repository selection **taste-releases only**, and mandatory metadata read. No Contents, Secrets, Environments or Administration write access is needed. Never put that token in chat, request JSON, files, Git or logs. GitHub Actions permission also allows managing runs; this is not a dispatch-only credential.
+4. Obtain the resulting run from the response if the API returns it; otherwise list this workflow's runs and identify the newly created run using its timestamp and actor. Dispatch only one batch at a time. Wait for and review its existing protected-environment approval. The cloud agent must present the private queue/cipher fingerprints for that specific batch before approval; public-key encryption alone is not authorization. The submitter credential does not change or remove the required reviewer.
+5. Read the job result through GitHub's Actions API. A completed success plus `Transfer and full readback passed; library metadata unchanged` is the byte-transfer checkpoint. Failed or cancelled runs do not count. Keep the producer originals, save the run ID and counts privately, and revoke the temporary hosted ciphertext only after success.
+
+The secure connection can be provisioned in Muse's normal custom API-key flow for `api.github.com`, using `Authorization: Bearer <secret>` and a short expiration. This setup must be explicitly approved before provisioning. It does not need a broader Meta Muse GitHub App installation or any R2 credentials in Muse. A real cloud-originated synthetic run is required before claiming that connection is operational.
+
+The flow map must separately preserve source app/capture/screen IDs, gallery order and ordered flow membership. A flat PNG ZIP does not contain that map. A cloud browser can collect small strict-JSON chunks from rendered gallery and flow views with overlapping windows; persist and validate each chunk, then match exact image source values to source screen links. Do not infer missing flows from counts. Keep opaque source URLs in private provenance, not public control files.
+
+References: [GitHub workflow dispatch permissions](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event), [workflow events](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows).
 
 ## Handoff
 
@@ -41,4 +57,4 @@ The descriptor's ID must equal the dispatch input. Queue and ciphertext fingerpr
 
 `python3 -B -m unittest discover -s tests` exercises invalid bundles, wrong hashes, traversal/extra files, rejected hosts/expired descriptors, fail-closed admission, full readback, collision handling and replay. `python3 tools/install_age.py` then `python3 tools/smoke.py` checks the actual pinned age binary with synthetic data only; set `RUNNER_TEMP` to a disposable private directory locally.
 
-Known unproved stages until a real pilot: Muse encrypted-file hosting, protected-environment API admission on this repo, R2 access from this runner, per-object receipts, and private metadata import. Do not describe synthetic success as a completed reference import.
+The original manual-dispatch byte path is verified. The new encrypted-descriptor submission needs its own cloud-originated pilot after review and credential setup. Private library indexing and rendered verification remain separate; do not describe a byte-transfer success as a completed reference import.
