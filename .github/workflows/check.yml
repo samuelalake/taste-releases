@@ -15,5 +15,10 @@ jobs:
         with:
           persist-credentials: false
       - run: python3 -B -m unittest discover -s tests
+      - name: Verify protected environment on manual smoke runs
+        if: github.event_name == 'workflow_dispatch'
+        run: python3 -B tools/gate.py
+        env:
+          GH_TOKEN: ${{ github.token }}
       - run: python3 -B tools/install_age.py
       - run: python3 -B tools/smoke.py
