@@ -3,6 +3,7 @@ import json
 import os
 import urllib.request
 from bundle import require
+from sealed_request import parse_request
 
 REPO = 'samuelalake/taste-releases'
 OWNER = 58840187
@@ -31,6 +32,10 @@ def main():
     require(os.environ['GITHUB_EVENT_NAME'] == 'workflow_dispatch')
     require(os.environ['GITHUB_REF'] == 'refs/heads/main')
     require(get('commits/main')['sha'] == os.environ['GITHUB_SHA'])
+    if os.environ.get('GITHUB_WORKFLOW') == 'Submitted private reference transfer':
+        with open(os.environ['GITHUB_EVENT_PATH']) as handle:
+            event = json.load(handle)
+        parse_request(event['inputs']['request'])
     check(get('environments/' + ENVIRONMENT), get('environments/' + ENVIRONMENT + '/deployment-branch-policies'))
     print('Admission passed')
 
