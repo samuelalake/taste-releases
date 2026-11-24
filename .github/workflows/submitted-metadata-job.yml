@@ -1,0 +1,72 @@
+name: Submitted private metadata job
+run-name: Submitted private metadata job
+on:
+  workflow_dispatch:
+    inputs:
+      request:
+        description: Age-encrypted metadata job request JSON; never a plaintext URL, host, credential, or batch content
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: private-metadata-job
+  cancel-in-progress: false
+jobs:
+  admission:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - run: python3 -B tools/gate.py
+        env:
+          GH_TOKEN: ${{ github.token }}
+  metadata:
+    needs: admission
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: taste-reference-transfer
+    permissions:
+      contents: read
+      # The runner mints a short-lived GitHub OIDC token per run for the Vercel
+      # Trusted Sources bypass. No static VERCEL_OIDC_TOKEN is provisioned.
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Recheck protected main after review
+        run: python3 -B tools/gate.py
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - run: python3 -B -m unittest discover -s tests
+      - run: python3 -B tools/install_age.py
+      - name: Install pinned storage client
+        run: |
+          python3 -m venv "$RUNNER_TEMP/taste-venv"
+          "$RUNNER_TEMP/taste-venv/bin/pip" install --disable-pip-version-check -q -r requirements.txt
+      - name: Decrypt approved job and apply it to the preview store only
+        run: '"$RUNNER_TEMP/taste-venv/bin/python" -B tools/run_metadata_job.py'
+        env:
+          TASTE_PREVIEW_ORIGIN: ${{ vars.TASTE_PREVIEW_ORIGIN }}
+          TASTE_AGE_RECIPIENT: ${{ vars.TASTE_AGE_RECIPIENT }}
+          TASTE_AGE_IDENTITY: ${{ secrets.TASTE_AGE_IDENTITY }}
+          TASTE_R2_ACCOUNT_ID: ${{ secrets.TASTE_R2_ACCOUNT_ID }}
+          TASTE_R2_WRITER_ACCESS_KEY_ID: ${{ secrets.TASTE_R2_WRITER_ACCESS_KEY_ID }}
+          TASTE_R2_WRITER_SECRET_ACCESS_KEY: ${{ secrets.TASTE_R2_WRITER_SECRET_ACCESS_KEY }}
+          TASTE_R2_READER_ACCESS_KEY_ID: ${{ secrets.TASTE_R2_READER_ACCESS_KEY_ID }}
+          TASTE_R2_READER_SECRET_ACCESS_KEY: ${{ secrets.TASTE_R2_READER_SECRET_ACCESS_KEY }}
+          TASTE_IMPORT_TOKEN: ${{ secrets.TASTE_IMPORT_TOKEN }}
+          TASTE_AGENT_TOKEN: ${{ secrets.TASTE_AGENT_TOKEN }}
+          # Optional audience for the minted OIDC token; empty means GitHub's
+          # default audience (the repository owner's URL). The Vercel Trusted
+          # Sources rule must accept whichever audience is configured here.
+          VERCEL_OIDC_AUDIENCE: ${{ vars.VERCEL_OIDC_AUDIENCE }}
+          AWS_EC2_METADATA_DISABLED: 'true'
+      - name: Remove transient tools
+        if: always()
+        run: rm -rf -- "$RUNNER_TEMP/taste-age" "$RUNNER_TEMP/taste-venv"

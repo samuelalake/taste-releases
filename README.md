@@ -4,7 +4,7 @@ Public control code; private reference files and credentials. Uses standard GitH
 
 ## Status
 
-The protected runner has completed Cal AI and Alma byte transfers with full reader-key verification. Library metadata is a separate operation. The synthetic check uses no credentials and is not evidence of a real import. Every real transfer requires separate owner review. No schedule or pull-request event can run it. Nothing here merges or deploys the Taste app.
+The protected runner has completed Cal AI and Alma byte transfers with full reader-key verification. Library metadata is a separate, preview-only operation through the reviewed `submitted-metadata-job.yml` workflow. See [metadata-job.md](docs/metadata-job.md) for setup and readback requirements. The synthetic check uses no credentials and is not evidence of a real import. Every real transfer requires separate owner review. No schedule or pull-request event can run it. Nothing here merges or deploys the Taste app.
 
 ## Cloud producer submission
 
@@ -30,7 +30,7 @@ References: [GitHub workflow dispatch permissions](https://docs.github.com/en/re
 4. The owner approves the exact queue fingerprint and ciphertext fingerprint in a private review. Put the batch descriptor in the environment secret `TASTE_BATCH_CONFIG` (see shape below), then dispatch only its random `batch_id`. Secrets are not accepted from the archive. The host must match the separately configured `TASTE_BUNDLE_HOST`; non-HTTPS URLs, private IPs and redirects are refused.
 5. After environment review, the runner downloads and verifies ciphertext, decrypts to ephemeral disk, validates **every** file before writing anything, and uploads only hash-named objects to `taste-references`. Writes use `IfNoneMatch="*"`. An existing object is accepted only after full reader-key hash/length/type/metadata verification. A restart verifies every existing object again. No objects are overwritten or deleted.
 6. Verified per-object receipts go to private R2 `imports/transfer-receipts/<receipt-sha256>.json`. A failed run makes no batch-success claim; retry is safe. Logs report only object counts and bytes. No public artifact is uploaded.
-7. Import library metadata through Taste's existing guarded preview importer separately. This runner never changes the Vercel Blob manifest, confirms classifications or imports production metadata.
+7. Import library metadata through Taste's existing guarded preview importer separately. Transfer jobs never change the Vercel Blob manifest. The separate metadata job can import only into the configured preview store; neither path confirms classifications or imports production metadata.
 
 Bounds: 64 MiB ZIP, 512 objects, 16 MiB per object; PNG, JPEG, PDF and JSON only; 15-minute transfer job, serial operations. Split larger exports into separately approved batches. Original files stay with the producer. Temporary plaintext is removed on normal success/failure by the Python context manager; the GitHub-hosted VM is discarded after the job. Cancellation may prevent Python cleanup, so never use this on a persistent self-hosted runner.
 
@@ -57,4 +57,4 @@ The descriptor's ID must equal the dispatch input. Queue and ciphertext fingerpr
 
 `python3 -B -m unittest discover -s tests` exercises invalid bundles, wrong hashes, traversal/extra files, rejected hosts/expired descriptors, fail-closed admission, full readback, collision handling and replay. `python3 tools/install_age.py` then `python3 tools/smoke.py` checks the actual pinned age binary with synthetic data only; set `RUNNER_TEMP` to a disposable private directory locally.
 
-The original manual-dispatch byte path is verified. The new encrypted-descriptor submission needs its own cloud-originated pilot after review and credential setup. Private library indexing and rendered verification remain separate; do not describe a byte-transfer success as a completed reference import.
+The encrypted-descriptor byte-transfer submission is verified from the cloud. The metadata workflow requires its own synthetic cloud pilot after the documented scoped preview-access setup. Private library indexing and rendered verification remain separate; do not describe a byte-transfer success as a completed reference import.
