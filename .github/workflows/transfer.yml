@@ -1,0 +1,61 @@
+name: Private reference transfer
+run-name: Private reference transfer
+on:
+  workflow_dispatch:
+    inputs:
+      batch_id:
+        description: Opaque approved batch ID (32 lowercase hex characters; never a URL)
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: private-reference-transfer
+  cancel-in-progress: false
+jobs:
+  admission:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - run: python3 -B tools/gate.py
+        env:
+          GH_TOKEN: ${{ github.token }}
+  transfer:
+    needs: admission
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: taste-reference-transfer
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Recheck admission after review
+        run: python3 -B tools/gate.py
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - run: python3 -B -m unittest discover -s tests
+      - run: python3 -B tools/install_age.py
+      - name: Install pinned storage client
+        run: |
+          python3 -m venv "$RUNNER_TEMP/taste-venv"
+          "$RUNNER_TEMP/taste-venv/bin/pip" install --disable-pip-version-check -q -r requirements.txt
+      - name: Validate, transfer and read back the approved batch
+        run: '"$RUNNER_TEMP/taste-venv/bin/python" -B tools/run.py --execute'
+        env:
+          TASTE_BATCH_ID: ${{ inputs.batch_id }}
+          TASTE_BATCH_CONFIG: ${{ secrets.TASTE_BATCH_CONFIG }}
+          TASTE_BUNDLE_HOST: ${{ vars.TASTE_BUNDLE_HOST }}
+          TASTE_AGE_RECIPIENT: ${{ vars.TASTE_AGE_RECIPIENT }}
+          TASTE_AGE_IDENTITY: ${{ secrets.TASTE_AGE_IDENTITY }}
+          TASTE_R2_ACCOUNT_ID: ${{ secrets.TASTE_R2_ACCOUNT_ID }}
+          TASTE_R2_WRITER_ACCESS_KEY_ID: ${{ secrets.TASTE_R2_WRITER_ACCESS_KEY_ID }}
+          TASTE_R2_WRITER_SECRET_ACCESS_KEY: ${{ secrets.TASTE_R2_WRITER_SECRET_ACCESS_KEY }}
+          TASTE_R2_READER_ACCESS_KEY_ID: ${{ secrets.TASTE_R2_READER_ACCESS_KEY_ID }}
+          TASTE_R2_READER_SECRET_ACCESS_KEY: ${{ secrets.TASTE_R2_READER_SECRET_ACCESS_KEY }}
+          AWS_EC2_METADATA_DISABLED: 'true'
+      - name: Remove transient tools
+        if: always()
+        run: rm -rf -- "$RUNNER_TEMP/taste-age" "$RUNNER_TEMP/taste-venv"

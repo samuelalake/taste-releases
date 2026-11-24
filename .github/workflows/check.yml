@@ -1,0 +1,19 @@
+name: Synthetic runner checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4, matching existing control repos
+        with:
+          persist-credentials: false
+      - run: python3 -B -m unittest discover -s tests
+      - run: python3 -B tools/install_age.py
+      - run: python3 -B tools/smoke.py
